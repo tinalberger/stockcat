@@ -6,8 +6,8 @@
             }
         },
         Urls = {
-            quote: "http://dev.markitondemand.com/Api/Quote/jsonp",
-            lookup: "http://dev.markitondemand.com/Api/Lookup/jsonp"
+            quote: "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&interval=5min&outputsize=full&apikey=ZBXAHHPH3761PMEQ", //"http://dev.markitondemand.com/Api/Quote/jsonp",
+            lookup: "https://www.alphavantage.co/query?function=SYMBOL_SEARCH&apikey=ZBXAHHPH3761PMEQ"//"http://dev.markitondemand.com/Api/Lookup/jsonp"
         };
 
     Class("StockCat.QuoteService", {
@@ -22,10 +22,9 @@
             this.xhr = $.ajax({
                 data: { symbol: sSymbol },
                 url: this.DATA_SRC,
-                dataType: "jsonp",
+                dataType: "json",
                 success: fSuccess,
-                error: fError,
-                context: this
+                error: fError
             });
         }
     });
@@ -40,12 +39,11 @@
             if (this.xhr) { this.xhr.abort(); }
             //Start a new request
             this.xhr = $.ajax({
-                data: { input: searchString },
+                data: { keywords: searchString },
                 url: this.DATA_SRC,
-                dataType: "jsonp",
-                success: fSuccess,
-                error: fError,
-                context: this
+                dataType: "json",
+                success:fSuccess,
+                error: fError
             });
         }
     });
@@ -103,35 +101,34 @@
             this.timestampTextField = new Respawn.TextField({ font: "normal 10px Arial", color: "#666", align: "right", x: 20, y: 180, w: 232, h: 14, z: 2 });
             this.addChild(this.timestampTextField);
         },
-        show: function(Data) {
-
-            this.symbolTextField.value = Data.Symbol;
-            this.companyNameTextField.value = Data.Name;
+        show: function(Data, change, today, companyName) {
+            this.symbolTextField.value = Data['Meta Data']['2. Symbol'];
+            this.companyNameTextField.value = companyName;
 
             var sign = "";
-            if (Data.Change == 0) {
+            if (change == 0) {
                 this.changesTextField.color = "#666";
-            } else if (Data.Change > 0) {
+            } else if (change > 0) {
                 sign = "+";
                 this.changesTextField.color = "#61bd9f";
-            } else if (Data.Change < 0) {
+            } else if (change < 0) {
                 this.changesTextField.color = "#c05d5d";
             };
-            this.changesTextField.value = sign + Data.Change.toFixed(2) + " (" + sign + Data.ChangePercent.toFixed(3) + "%)";
+            this.changesTextField.value = sign + change.toFixed(2) + " (" + sign + change.toFixed(3) + "%)";
 
             this.openTextField.value = "Open: ";
-            this.openTextFieldData.value = "$" + Data.Open;
+            this.openTextFieldData.value = "$" + Data['Time Series (Daily)'][today]['1. open'];
             this.lastTextField.value = "Last: ";
-            this.lastTextFieldData.value = "$" + Data.LastPrice;
+            this.lastTextFieldData.value = "$" + Data['Time Series (Daily)'][today]['4. close'];
             this.highTextField.value = "High: ";
-            this.highTextFieldData.value = "$" + Data.High;
-            this.mktCapTextField.value = "Mkt Cap: ";
-            this.mktCapTextFieldData.value = Data.MarketCap;
+            this.highTextFieldData.value = "$" + Data['Time Series (Daily)'][today]['2. high'];
+            // this.mktCapTextField.value = "Mkt Cap: ";
+            // this.mktCapTextFieldData.value = Data.MarketCap;
             this.volumeTextField.value = "Volume: ";
-            this.volumeTextFieldData.value = Data.Volume;
-            this.timestampTextField.value = "As of: " + Data.Timestamp;
+            this.volumeTextFieldData.value = Data['Time Series (Daily)'][today]['5. volume'];
+            this.timestampTextField.value = "As of: " + today;
             this.lowTextField.value = "Low: ";
-            this.lowTextFieldData.value = "$" + Data.Low;
+            this.lowTextFieldData.value = "$" + Data['Time Series (Daily)'][today]['3. low'];
 
             this.visible = true;
         },
@@ -155,10 +152,16 @@
                 w: this.w,
                 h: this.h,
                 align: "center",
-                readOnly: false
+                readOnly: false,
+                value: ""
             });
-            this.textField.z = 2;
+             this.textField.z = 2;
             this.addChild(this.textField);
+
+            setTimeout(() => {
+                this.textField.trigger("focus", { offsetX: 10 });
+                document.getElementById("respawnInternalInputProxy").focus();
+            }, 500);
 
             this.quoteService = new StockCat.QuoteService();
 
@@ -168,7 +171,7 @@
                 _self.parent.openMouth();
             });
             this.textField.on("keydown", function(e) {
-                if (e.keyIdentifier == "Enter") {
+                if (e.key == "Enter") {
                     _self.parent.munch();
 
                     var value = this.value;
@@ -182,7 +185,10 @@
                             console.log("ajax error");
                         });
                     }, 2000);
-                };
+                }
+                else {
+                    console.log(e);
+                }
             });
         }
     });
@@ -332,10 +338,67 @@
             this.status = "superFrowning";
             this.expressionSprite.play("superSad", true);
         },
-        react: function(JsonResult) {
-			var status = JsonResult.Data.Status;
-            if (status == "SUCCESS") {
-                var changePercent = JsonResult.Data.ChangePercent;
+        react: function(JsonResult, companyName) {
+            //get today date
+            let today = new Date();
+            let year = today.getFullYear();
+            let month = String(today.getMonth() + 1).padStart(2, '0');
+            let day = String(today.getDate()).padStart(2, '0');
+            let formattedDate = `${year}-${month}-${day}`;
+            let todaydata = JsonResult['Time Series (Daily)'][formattedDate];
+          
+            //get today's data if its the weekend
+            if(todaydata === undefined){
+                today = today.getDate()-1;
+                year = today.getFullYear();
+                month = String(today.getMonth() + 1).padStart(2, '0');
+                day = String(today.getDate()).padStart(2, '0');
+                formattedDate = `${year}-${month}-${day}`;
+                todaydata = JsonResult['Time Series (Daily)'][formattedDate];
+                if(todaydata === undefined){
+                    today = today.getDate()-1;
+                    year = today.getFullYear();
+                    month = String(today.getMonth() + 1).padStart(2, '0');
+                    day = String(today.getDate()).padStart(2, '0');
+                    formattedDate = `${year}-${month}-${day}`;
+                    todaydata = JsonResult['Time Series (Daily)'][formattedDate];
+                }
+            }
+            //get yesterday date
+            let yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            let yesteryear = yesterday.getFullYear();
+            let yestermonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+            let yesterdayday = String(yesterday.getDate()).padStart(2, '0');
+            let yesterdayformattedDate = `${yesteryear}-${yestermonth}-${yesterdayday}`;
+
+            let yesterdaydata = JsonResult['Time Series (Daily)'][yesterdayformattedDate];
+            //get yesterday's data if its the weekend
+            if(yesterdaydata === undefined){
+                yesterday = yesterday.getDate()-1;
+                yesteryear = yesterday.getFullYear();
+                yestermonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+                yesterdayday = String(yesterday.getDate()).padStart(2, '0');
+
+                yesterdayformattedDate = `${yesteryear}-${yestermonth}-${yesterdayday}`;
+                yesterdaydata = JsonResult['Time Series (Daily)'][yesterdayformattedDate];
+
+                if(yesterdaydata === undefined){
+                    yesterday = yesterday.getDate()-1;
+                    yesteryear = yesterday.getFullYear();
+                    yestermonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+                    yesterdayday = String(yesterday.getDate()).padStart(2, '0');
+
+                    yesterdayformattedDate = `${yesteryear}-${yestermonth}-${yesterdayday}`;
+                    yesterdaydata = JsonResult['Time Series (Daily)'][yesterdayformattedDate];
+
+                }
+            }
+
+            if (Object.entries(todaydata).length > 0) {
+              
+                var changePercent = ((todaydata['1. open'] - yesterdaydata['4. close']) /  yesterdaydata['4. close']) * 100;
+
                 if (changePercent == 0) {
                     //no change
                     this.closeMouth();
@@ -354,14 +417,12 @@
                         this.frown();
                     };
                 };
-
-                this.speechBubble.show(JsonResult.Data);
+                this.speechBubble.show(JsonResult, changePercent, formattedDate, companyName);
 
             } else {
                 this.barf();
             };
         },
-
         draw: function(ctx) {
 
             //draw tail
@@ -411,7 +472,42 @@
 
     window.addEventListener("load", function() {
         window.g = new StockCat.StockCat();
+        
     });
+    window.onload = function () {
+        var canvas = document.getElementById("canvas");
+    
+        Class("MyGame.MainState : Respawn.State", {
+            MainState: function () {
+                this.super();
+    
+                var textField = new Respawn.TextField({
+                    x: 100,
+                    y: 100,
+                    w: 400,
+                    font: "normal 24px sans-serif",
+                    color: "#000",
+                    readOnly: false,
+                    value: ""
+                });
+    
+                this.addChild(textField);
+    
+                // Automatically focus after load
+                setTimeout(() => {
+                    textField.trigger("focus", { offsetX: 10 });
+                    document.getElementById("respawnInternalInputProxy").focus();
+                }, 500);
+            }
+        });
+    
+        var game = new Respawn.Engine({
+            canvas: canvas,
+            state: MyGame.MainState
+        });
+    
+        game.start();
+    };
 
 })();
 
@@ -444,17 +540,23 @@ stockcat.prototype._symbolLookupSubmit = function() {
         console.log("ajax error");
     });
 };
-stockcat.prototype._buildResults = function(object) {
+stockcat.prototype._buildResults = function(object) {  
     var resultsTable = [];
-    if (object != undefined && object.length != 0) {
+    var bestmatches = object.bestMatches;
+
+    if (bestmatches != undefined && bestmatches.length != 0) {
+       
         resultsTable.push("<table id=\'resultsTable\'><thead><tr><th class=\"symbol\">Ticker Symbol</th><th>Company Name</th></tr></thead><tbody>");
-        for (var i = 0; i < object.length; i++) {
+      
+        for (var i = 0; i < bestmatches.length; i++) {
             resultsTable.push("<tr>");
-                resultsTable.push("<td class=\"symbol\">" + object[i].Symbol + "</td>");
-                resultsTable.push("<td>" + object[i].Name + "</td>");
+                resultsTable.push("<td class=\"symbol\">" + bestmatches[i]['1. symbol'] + "</td>");
+                resultsTable.push("<td>" + bestmatches[i]['2. name'] + "</td>");
             resultsTable.push("</tr>");
         }
         resultsTable.push("</tbody></table>");
+    } else if (object.Information!= undefined && object.Information.length != 0){
+        resultsTable.push("<span class=\'noResults\'>Search Limit Reached</span>");
     } else {
         resultsTable.push("<span class=\'noResults\'>There are no results</span>");
     };
@@ -467,7 +569,8 @@ stockcat.prototype._bindResults = function() {
         function(){$(this).removeClass("hover");}
     );
     $("td.symbol").click(function() {
-        var symbol = $(this).text(); // the symbol clicked on.
+        let symbol = $(this).text(); // the symbol clicked on.
+        let companyName = $(this).next().text();
         //close fish
         $('#lookupPopUpContainer').removeClass("show").addClass("hide");
         $('div.darkenBackground').removeClass("show").addClass("hide");
@@ -476,7 +579,7 @@ stockcat.prototype._bindResults = function() {
         setTimeout(function() {
             window.g.state.cat.mouth.quoteService.makeRequest(symbol, function(JsonResult) {
                 //success
-                window.g.state.cat.react(JsonResult);
+                window.g.state.cat.react(JsonResult, companyName);
             }, function() {
                 //error
                 window.g.state.cat.barf();

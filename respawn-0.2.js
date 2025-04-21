@@ -605,12 +605,13 @@
 			}).on("keydown", function(e) {
 				if(!this.readOnly) {
 					setTimeout(function() { //this timeout is needed to wait for the dom
-		                if(e.keyIdentifier == "Enter") {
+		                if(e.key == "Enter") {
 		                    _self.trigger("blur", e);
 		                    _self.value = "";
 		                } else {
 							_self.value = _self.ip.value;
 							_self.selectionLogic();
+							console.log(_self);
 		                };
 					});
 				};
@@ -848,7 +849,11 @@
 			this.inputProxy.setAttribute("id", "respawnInternalInputProxy");
 			this.inputProxy.setAttribute("style", "position:absolute;left:0;top:-100px;");
 			document.body.appendChild(this.inputProxy);
+			this.inputProxy.focus();
 			this.globals["inputProxy"] = this.inputProxy;
+
+			console.log("Current focus:", this.globals["focus"]);
+window.addEventListener("keydown", (e) => console.log("Key down detected:", e.key));
 		},
 		addCanvasEventListeners: function() {
 			var handle = this.handleCanvasEvent.bind(this);
@@ -861,6 +866,7 @@
 			this.canvas.addEventListener("mousewheel", handle, false);
 		},
 		handleCanvasEvent: function(e) {
+			this.inputProxy.focus();
 			var target = this.findCanvasMouseEventTarget({
 					x: e.offsetX,
 					y: e.offsetY
@@ -895,14 +901,14 @@
 		addKeyboardEventListeners: function() {
 			window.addEventListener("keydown", this.handleKeyDownEvent.bind(this), false);
 			window.addEventListener("keyup", this.handleKeyUpEvent.bind(this), false);
-			window.addEventListener("keypress", this.handleKeyPressEvent.bind(this), false);
+		    window.addEventListener("keypress", this.handleKeyPressEvent.bind(this), false);
 		},
 		handleKeyDownEvent: function(e) {
 			this.globals["focus"].trigger("keydown", e);
 		},
-		handleKeyPressEvent: function(e) {
-			this.globals["focus"].trigger("keypress", e);
-		},
+		 handleKeyPressEvent: function(e) {
+		 	this.globals["focus"].trigger("keypress", e);
+		 },
 		handleKeyUpEvent: function(e) {
 			this.globals["focus"].trigger("keyup", e);
 		}
