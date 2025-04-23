@@ -611,7 +611,6 @@
 		                } else {
 							_self.value = _self.ip.value;
 							_self.selectionLogic();
-							console.log(_self);
 		                };
 					});
 				};
@@ -792,7 +791,6 @@
 				if(readyPercentage == 1 || noResources) {
 					this.ready = true;
 					this.loading = false;
-					console.log("Everything has loaded. Running "+this.className+"...");
 				};
 			};
 		},
@@ -851,9 +849,6 @@
 			document.body.appendChild(this.inputProxy);
 			this.inputProxy.focus();
 			this.globals["inputProxy"] = this.inputProxy;
-
-			console.log("Current focus:", this.globals["focus"]);
-window.addEventListener("keydown", (e) => console.log("Key down detected:", e.key));
 		},
 		addCanvasEventListeners: function() {
 			var handle = this.handleCanvasEvent.bind(this);
